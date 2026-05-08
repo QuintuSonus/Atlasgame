@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ATLAS — A Daily Survey of the Earth</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+  :root {
+    --paper: #ede4d3;
+    --paper-deep: #e2d5bc;
+    --ink: #1a1612;
+    --ink-soft: #4a3f33;
+    --ink-faded: #7a6a55;
+    --rule: #c9b994;
+    --accent: #a8351f;
+    --gold: #b08940;
+    --green: #4a6b3a;
+    --shadow: rgba(26, 22, 18, 0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--paper);
+    background-image:
+      radial-gradient(ellipse at top left, rgba(176, 137, 64, 0.08), transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(168, 53, 31, 0.05), transparent 50%),
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.08 0 0 0 0 0.06 0 0 0 0.12 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    color: var(--ink);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    position: relative;
+  }
+
+  /* Subtle grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--rule) 1px, transparent 1px),
+      linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size: 80px 80px;
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 18px 28px 16px;
+    gap: 14px;
+  }
+
+  /* ───── HEADER ───── */
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    border-bottom: 1px solid var(--ink);
+    padding-bottom: 10px;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -4px;
+    height: 1px;
+    background: var(--ink);
+  }
+
+  .meta-left, .meta-right {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .meta-right { text-align: right; }
+
+  .brand {
+    text-align: center;
+  }
+  .brand h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: clamp(28px, 4.5vw, 44px);
+    letter-spacing: 0.18em;
+    line-height: 1;
+  }
+  .brand .tagline {
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ───── MAIN STAGE ───── */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    gap: 24px;
+    min-height: 0;
+  }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; }
+    .app { padding: 12px 16px; }
+  }
+
+  /* Satellite viewport */
+  .viewport-frame {
+    position: relative;
+    border: 1px solid var(--ink);
+    background: #000;
+    overflow: hidden;
+    min-height: 0;
+    box-shadow:
+      0 1px 0 var(--paper-deep) inset,
+      0 12px 30px -10px var(--shadow);
+  }
+
+  .viewport-frame::before,
+  .viewport-frame::after {
+    content: '';
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    border-color: var(--paper);
+  }
+  .viewport-frame::before {
+    top: 8px; left: 8px;
+    width: 22px; height: 22px;
+    border-top: 1px solid var(--paper);
+    border-left: 1px solid var(--paper);
+  }
+  .viewport-frame::after {
+    bottom: 8px; right: 8px;
+    width: 22px; height: 22px;
+    border-bottom: 1px solid var(--paper);
+    border-right: 1px solid var(--paper);
+  }
+
+  /* Reticle crosshair */
+  .reticle {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .reticle::before, .reticle::after {
+    content: '';
+    position: absolute;
+    background: rgba(237, 228, 211, 0.35);
+  }
+  .reticle::before {
+    left: 50%; top: 50%;
+    width: 1px; height: 30px;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+  }
+  .reticle::after {
+    left: 50%; top: 50%;
+    width: 30px; height: 1px;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    background: #0a0a0a;
+    cursor: default;
+  }
+
+  /* Hide all leaflet UI */
+  .leaflet-control-container { display: none !important; }
+  .leaflet-tile {
+    filter: contrast(1.05) saturate(0.92);
+  }
+  .leaflet-container {
+    background: #0a0a0a !important;
+  }
+
+  /* Coordinate badge */
+  .coord-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--paper);
+    background: rgba(26, 22, 18, 0.65);
+    backdrop-filter: blur(4px);
+    padding: 6px 10px;
+    border: 1px solid rgba(237, 228, 211, 0.2);
+    letter-spacing: 0.1em;
+  }
+  .coord-badge .label { opacity: 0.6; margin-right: 6px; }
+
+  .zoom-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    z-index: 5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--paper);
+    background: rgba(26, 22, 18, 0.65);
+    backdrop-filter: blur(4px);
+    padding: 6px 10px;
+    border: 1px solid rgba(237, 228, 211, 0.2);
+    letter-spacing: 0.1em;
+  }
+
+  /* ───── SIDEBAR ───── */
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+
+  .panel {
+    border: 1px solid var(--ink);
+    background: rgba(237, 228, 211, 0.4);
+    padding: 14px 16px;
+  }
+
+  .panel-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .panel-title .ornament { color: var(--gold); font-size: 12px; }
+
+  /* Attempt slots — Wordle-esque */
+  .attempts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .attempt-row {
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    font-family: 'Cormorant Garamond', serif;
+    transition: all 0.4s ease;
+    min-height: 38px;
+  }
+
+  .attempt-row.empty {
+    background: transparent;
+    border-style: dashed;
+  }
+
+  .attempt-row.filled {
+    border-color: var(--ink);
+    background: var(--paper);
+  }
+
+  .attempt-row.correct {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--paper);
+  }
+  .attempt-row.correct .attempt-num,
+  .attempt-row.correct .attempt-meta { color: var(--paper); opacity: 0.85; }
+
+  .attempt-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-faded);
+    text-align: center;
+  }
+
+  .attempt-name {
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attempt-row.empty .attempt-name {
+    color: var(--ink-faded);
+    font-style: italic;
+    font-size: 13px;
+  }
+
+  .attempt-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-soft);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .arrow {
+    display: inline-block;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .dist-bar {
+    display: inline-block;
+    width: 36px;
+    height: 4px;
+    background: var(--rule);
+    position: relative;
+    overflow: hidden;
+  }
+  .dist-bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--green), var(--gold), var(--accent));
+    transform-origin: left;
+    transform: scaleX(var(--prox, 0));
+  }
+
+  /* Guess input */
+  .guess-form {
+    position: relative;
+  }
+
+  .guess-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 17px;
+    color: var(--ink);
+    outline: none;
+    letter-spacing: 0.01em;
+  }
+  .guess-input::placeholder {
+    color: var(--ink-faded);
+    font-style: italic;
+  }
+  .guess-input:focus {
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(176, 137, 64, 0.2);
+  }
+
+  .suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 20;
+    box-shadow: 0 8px 20px var(--shadow);
+  }
+
+  .suggestion {
+    padding: 8px 14px;
+    font-size: 15px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.15s;
+  }
+  .suggestion:last-child { border-bottom: none; }
+  .suggestion:hover, .suggestion.active {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .submit-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .submit-btn:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .submit-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Stats footer */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .stat {
+    padding: 10px 8px;
+    text-align: center;
+    border-right: 1px solid var(--rule);
+  }
+  .stat:last-child { border-right: none; }
+  .stat-value {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-top: 4px;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--ink);
+    padding-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faded);
+  }
+
+  /* ───── ENDGAME OVERLAY ───── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 22, 18, 0.75);
+    backdrop-filter: blur(6px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.4s ease;
+  }
+  .overlay.show { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .endgame-card {
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    max-width: 460px;
+    width: 100%;
+    padding: 32px 28px;
+    text-align: center;
+    position: relative;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .endgame-card::before {
+    content: '✦';
+    position: absolute;
+    top: 12px; left: 50%;
+    transform: translateX(-50%);
+    color: var(--gold);
+    font-size: 14px;
+  }
+
+  .endgame-card h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    font-style: italic;
+    font-size: 36px;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .endgame-card .answer {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 16px 0 6px;
+    letter-spacing: 0.02em;
+  }
+  .endgame-card .answer-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .endgame-card .squares {
+    font-size: 22px;
+    letter-spacing: 4px;
+    margin: 18px 0;
+    line-height: 1.2;
+  }
+  .endgame-card .play-again {
+    margin-top: 12px;
+    padding: 12px 28px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .endgame-card .play-again:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Help icon */
+  .help-btn {
+    background: transparent;
+    border: 1px solid var(--ink-soft);
+    color: var(--ink-soft);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+    font-size: 13px;
+    line-height: 1;
+    margin-left: 8px;
+    vertical-align: middle;
+    transition: all 0.2s;
+  }
+  .help-btn:hover { background: var(--ink); color: var(--paper); }
+
+  .ornament-divider {
+    text-align: center;
+    color: var(--gold);
+    margin: 8px 0;
+    font-size: 11px;
+    letter-spacing: 1em;
+  }
+
+  /* Mobile tweaks */
+  @media (max-width: 880px) {
+    header { grid-template-columns: 1fr; gap: 4px; padding-bottom: 8px; }
+    .meta-left, .meta-right { display: none; }
+    .brand h1 { font-size: 28px; }
+    .viewport-frame { min-height: 280px; }
+    main { gap: 14px; }
+  }
+  @media (max-height: 700px) and (min-width: 881px) {
+    .panel { padding: 10px 12px; }
+    .attempt-row { padding: 6px 10px; min-height: 32px; }
+    .attempt-name { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header>
+    <div class="meta-left">
+      <span id="dateLabel">·</span> · NO. <span id="puzzleNum">001</span>
+    </div>
+    <div class="brand">
+      <h1>ATLAS<button class="help-btn" id="helpBtn" title="How to play">?</button></h1>
+      <div class="tagline">a daily survey of the earth, from above</div>
+    </div>
+    <div class="meta-right">
+      Latitude unknown · Longitude unknown
+    </div>
+  </header>
+
+  <main>
+    <div class="viewport-frame">
+      <div id="map"></div>
+      <div class="reticle"></div>
+      <div class="coord-badge">
+        <span class="label">SECTOR</span><span id="sectorCode">██-██-██</span>
+      </div>
+      <div class="zoom-badge">
+        <span style="opacity: 0.6">ALT</span> <span id="altLabel">— km</span>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Field Log</span>
+          <span class="ornament">✦</span>
+        </div>
+        <div class="attempts" id="attempts"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Submit Identification</span>
+          <span id="guessesLeft" class="ornament" style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-soft);">5 LEFT</span>
+        </div>
+        <div class="guess-form">
+          <input
+            id="guessInput"
+            class="guess-input"
+            type="text"
+            placeholder="Name a country…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <div id="suggestions" class="suggestions" style="display: none;"></div>
+        </div>
+        <button id="submitBtn" class="submit-btn" disabled>Submit Guess →</button>
+      </div>
+
+    </aside>
+  </main>
+
+  <footer>
+    <div>EST. MMXXVI · IMAGERY VIA ESRI WORLD</div>
+    <div>SCALE — VARIABLE</div>
+  </footer>
+
+</div>
+
+<!-- Endgame Overlay -->
+<div class="overlay" id="overlay">
+  <div class="endgame-card">
+    <h2 id="endTitle">Solved.</h2>
+    <div class="ornament-divider">✦ ✦ ✦</div>
+    <div class="answer" id="endAnswer">—</div>
+    <div class="answer-meta" id="endMeta">—</div>
+    <div class="squares" id="endSquares"></div>
+    <button class="play-again" id="playAgain">New Survey</button>
+  </div>
+</div>
+
+<!-- How to play -->
+<div class="overlay" id="helpOverlay">
+  <div class="endgame-card" style="text-align: left;">
+    <h2 style="text-align: center;">How to Play</h2>
+    <div class="ornament-divider">✦ ✦ ✦</div>
+    <div style="font-size: 15px; line-height: 1.6;">
+      <p style="margin-bottom: 10px;"><strong>1.</strong> A satellite image of a mystery location is shown — zoomed in tight.</p>
+      <p style="margin-bottom: 10px;"><strong>2.</strong> Guess the country it belongs to. You get <strong>5 attempts</strong>.</p>
+      <p style="margin-bottom: 10px;"><strong>3.</strong> After each wrong guess, the camera <em>pulls back</em> to reveal more context, and you'll see the distance and direction from your guess to the target.</p>
+      <p style="margin-bottom: 10px;"><strong>4.</strong> Find the country before the camera reaches space — or before you run out of guesses.</p>
+    </div>
+    <div style="text-align: center; margin-top: 20px;">
+      <button class="play-again" id="closeHelp">Begin Survey</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
