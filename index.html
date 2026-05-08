@@ -640,11 +640,12 @@
       gap: 12px;
     }
 
-    /* Map: aspect-ratio so it scales nicely across phone sizes. */
+    /* Map: square at the top of the stacked mobile layout. */
     .viewport-frame {
-      aspect-ratio: 4 / 3;
-      min-height: 240px;
-      max-height: 60vh;
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      min-height: 0;
+      max-height: none;
     }
 
     .coord-badge, .zoom-badge {
@@ -723,11 +724,6 @@
     }
     .brand h1 { font-size: 22px; letter-spacing: 0.12em; }
     .brand .tagline { font-size: 10px; }
-
-    .viewport-frame {
-      aspect-ratio: 1 / 1;
-      min-height: 220px;
-    }
 
     .panel { padding: 10px 12px; }
     .attempt-row {
