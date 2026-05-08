@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#ede4d3" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <title>ATLAS — A Daily Survey of the Earth</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,10 +32,17 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
-    height: 100%;
-    overflow: hidden;
+    min-height: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+
+  /* On wider screens, lock the page to the viewport (no scroll). */
+  @media (min-width: 881px) {
+    html, body { height: 100%; overflow: hidden; }
   }
 
   body {
@@ -64,11 +74,16 @@
     position: relative;
     z-index: 1;
     height: 100vh;
+    height: 100dvh;
     display: grid;
     grid-template-rows: auto 1fr auto;
     max-width: 1400px;
     margin: 0 auto;
     padding: 18px 28px 16px;
+    padding-left: max(28px, env(safe-area-inset-left));
+    padding-right: max(28px, env(safe-area-inset-right));
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
     gap: 14px;
   }
 
@@ -126,10 +141,6 @@
     min-height: 0;
   }
 
-  @media (max-width: 880px) {
-    main { grid-template-columns: 1fr; }
-    .app { padding: 12px 16px; }
-  }
 
   /* Satellite viewport */
   .viewport-frame {
@@ -585,18 +596,169 @@
     letter-spacing: 1em;
   }
 
-  /* Mobile tweaks */
-  @media (max-width: 880px) {
-    header { grid-template-columns: 1fr; gap: 4px; padding-bottom: 8px; }
-    .meta-left, .meta-right { display: none; }
-    .brand h1 { font-size: 28px; }
-    .viewport-frame { min-height: 280px; }
-    main { gap: 14px; }
-  }
   @media (max-height: 700px) and (min-width: 881px) {
     .panel { padding: 10px 12px; }
     .attempt-row { padding: 6px 10px; min-height: 32px; }
     .attempt-name { font-size: 14px; }
+  }
+
+  /* ───── MOBILE / TABLET (≤ 880px) ───── */
+  @media (max-width: 880px) {
+    /* Allow the page to scroll vertically; let content size naturally. */
+    .app {
+      height: auto;
+      min-height: 100dvh;
+      max-width: 100%;
+      padding: 14px 16px;
+      padding-left: max(14px, env(safe-area-inset-left));
+      padding-right: max(14px, env(safe-area-inset-right));
+      padding-top: max(12px, env(safe-area-inset-top));
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      gap: 12px;
+    }
+
+    header {
+      grid-template-columns: 1fr;
+      gap: 2px;
+      padding-bottom: 8px;
+      text-align: center;
+    }
+    .meta-left, .meta-right { display: none; }
+    .brand h1 {
+      font-size: 26px;
+      letter-spacing: 0.14em;
+    }
+    .brand .tagline { font-size: 11px; }
+    .help-btn {
+      width: 20px; height: 20px;
+      font-size: 12px;
+      margin-left: 6px;
+    }
+
+    main {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    /* Map: aspect-ratio so it scales nicely across phone sizes. */
+    .viewport-frame {
+      aspect-ratio: 4 / 3;
+      min-height: 240px;
+      max-height: 60vh;
+    }
+
+    .coord-badge, .zoom-badge {
+      font-size: 9px;
+      padding: 5px 8px;
+    }
+    .coord-badge { top: 8px; right: 8px; }
+    .zoom-badge { bottom: 8px; left: 8px; }
+
+    .sidebar { gap: 12px; }
+    .panel { padding: 12px 14px; }
+    .panel-title { font-size: 9px; margin-bottom: 8px; }
+
+    .attempt-row {
+      grid-template-columns: 20px 1fr auto;
+      gap: 8px;
+      padding: 8px 10px;
+      min-height: 40px;
+    }
+    .attempt-name { font-size: 15px; }
+    .attempt-row.empty .attempt-name { font-size: 12px; }
+    .attempt-meta { font-size: 9px; gap: 5px; }
+    .dist-bar { width: 28px; }
+
+    /* Avoid iOS zoom-on-focus by ensuring 16px+ font on inputs. */
+    .guess-input {
+      font-size: 16px;
+      padding: 12px 14px;
+    }
+
+    .submit-btn {
+      padding: 13px;
+      font-size: 11px;
+    }
+
+    .suggestion {
+      padding: 12px 14px;
+      font-size: 16px;
+    }
+    .suggestions { max-height: 240px; }
+
+    .stats { grid-template-columns: repeat(3, 1fr); }
+    .stat { padding: 9px 6px; }
+    .stat-value { font-size: 20px; }
+
+    footer {
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+      text-align: center;
+      font-size: 8px;
+    }
+
+    /* Endgame / help overlays — make them scrollable on short screens. */
+    .overlay {
+      padding: 16px;
+      align-items: flex-start;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .endgame-card {
+      padding: 26px 22px;
+      margin: auto 0;
+    }
+    .endgame-card h2 { font-size: 30px; }
+    .endgame-card .answer { font-size: 20px; }
+    .endgame-card .squares { font-size: 20px; }
+  }
+
+  /* ───── SMALL PHONES (≤ 420px) ───── */
+  @media (max-width: 420px) {
+    .app { padding: 10px 12px; gap: 10px; }
+    .app {
+      padding-left: max(10px, env(safe-area-inset-left));
+      padding-right: max(10px, env(safe-area-inset-right));
+    }
+    .brand h1 { font-size: 22px; letter-spacing: 0.12em; }
+    .brand .tagline { font-size: 10px; }
+
+    .viewport-frame {
+      aspect-ratio: 1 / 1;
+      min-height: 220px;
+    }
+
+    .panel { padding: 10px 12px; }
+    .attempt-row {
+      grid-template-columns: 18px 1fr auto;
+      gap: 6px;
+      padding: 7px 8px;
+      min-height: 36px;
+    }
+    .attempt-name { font-size: 14px; }
+    .attempt-meta { font-size: 9px; }
+    .dist-bar { width: 22px; }
+
+    .endgame-card { padding: 22px 18px; }
+    .endgame-card h2 { font-size: 26px; }
+    .endgame-card .answer { font-size: 18px; }
+    .endgame-card .squares { font-size: 18px; letter-spacing: 3px; }
+    .endgame-card .play-again { padding: 11px 22px; }
+  }
+
+  /* ───── LANDSCAPE PHONES ───── */
+  @media (max-width: 880px) and (orientation: landscape) and (max-height: 500px) {
+    main { grid-template-columns: minmax(0, 1.2fr) minmax(240px, 1fr); }
+    .viewport-frame {
+      aspect-ratio: auto;
+      min-height: 0;
+      max-height: none;
+      height: 100%;
+    }
+    .brand h1 { font-size: 20px; }
+    .brand .tagline { display: none; }
+    header { padding-bottom: 6px; }
   }
 </style>
 </head>
